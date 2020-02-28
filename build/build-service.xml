@@ -1,0 +1,87 @@
+<?xml version="1.0"?>
+
+<project name="OC-101 EasySIP: First Application - Build Service" default="build" basedir="..">
+    <property file="${basedir}/build.local.properties"/>
+    <property file="${basedir}/build.properties"/>
+    <import file="${client.home}/etc/common.xml"/>
+    <property name="build.dir" value="${classes}/service"/>
+
+
+    <!-- =================================
+          target: init
+         ================================= -->
+    <target name="init"> 
+       <mkdir dir="${classes}"/> 
+       <mkdir dir="${jars}"/> 
+
+       <path id="slee.classpath"> 
+       	   <pathelement location="${ocdoclet.pack}/libs/slee-1.1.jar"/>
+       </path>
+       <path id="sip.classpath">
+           <fileset dir="${sis.connectivity.pack}/lib" includes="*.jar"/>
+       </path>        
+
+       <taskdef name="sleedoclet" classname="xdoclet.modules.javax.slee.SleeDocletTask"> 
+           <classpath> 
+        	   	<pathelement location="${ocdoclet.pack}/libs/xdoclet-slee-module-2.1.6.jar"/> 
+            	<pathelement location="${ocdoclet.pack}/libs/xdoclet-opencloud-module-2.1.6.jar"/> 
+	            <pathelement location="${ocdoclet.pack}/libs/xdoclet-dep-1.2.3-oc5.jar"/> 
+               <pathelement location="/home/rhino/opencloud/log4j.jar"/> 
+           </classpath> 
+       </taskdef> 
+    </target>
+    
+    <!-- =================================
+          target: clean
+         ================================= -->
+    <target name="clean" description="Cleans the project"> 
+       <delete dir="${target}"/>
+    </target>
+   
+    <!-- ================================= 
+          target: compile
+         ================================= -->
+    <target name="compile" depends="init">
+
+      <mkdir dir="${build.dir}"/>
+      <javac source="1.7" target="1.7" debug="true"
+          srcdir="${src}" destdir="${build.dir}"
+          includes="com/opencloud/**/*.java">
+        <classpath id="service.classpath">
+          <path refid="slee.classpath"/>
+          <path refid="sip.classpath"/>
+        </classpath>
+      </javac>
+  	
+  	  <sleedoclet destdir="${build.dir}/META-INF" 
+           mergedir="${src}" excludedtags="@version,@author,@todo" sleespec="1.1"
+           force="true" verbose="true" tokensFile="${basedir}/build.properties"> 
+         <fileset dir="${src}"> 
+           <include name="com/opencloud/**/*Sbb.java"/> 
+         </fileset>  
+        <sbb-jar/> 
+        <service/>
+      </sleedoclet> 
+    </target>
+
+    <!-- ================================= 
+          target: build
+         ================================= -->    
+    <target name="build" depends="clean,compile" description="Build service deployable unit">
+        <!-- SBB jar -->
+        <mkdir dir="${jars}"/>
+
+        <!-- Service deployable unit jar -->
+        <deployablejar destfile="${jars}/${service.jar}"
+            metainfbase="${build.dir}/META-INF">
+    		<sbbjar classpath="${build.dir}"
+    	                destfile="${jars}/${sbb.jar}" duplicate="preserve" sbbjarxml="sbb-jar.xml">
+    			<fileset dir="${build.dir}"
+    	                    includes="com/opencloud/**/*.class"/>
+    		</sbbjar>
+        </deployablejar>
+
+        <delete file="${jars}/${sbb.jar}"/>
+    </target>
+
+</project>

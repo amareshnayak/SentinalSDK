@@ -1,0 +1,288 @@
+<?xml version="1.0"?>
+
+<project name="OC-101 EasySIP: First Application - Deploy" default="deploy-service" basedir="..">
+    <property file="${basedir}/build.local.properties"/>
+	<property file="${basedir}/build.properties"/>
+	<import file="${client.home}/etc/common.xml"/>
+    <import file="${basedir}/build/build-service.xml"/>
+	<import file="${sis.connectivity.pack}/admin/common/sis-ant-management.xml"/>
+
+	<!-- ================================= 
+          deploy service              
+         ================================= -->
+	<target name="deploy-service" depends="build, login" description="Deploy service">
+		<slee-management>
+			<install srcfile="${jars}/${service.jar}" url="file:${service.jar}" />
+			<activateservice>
+				<component name="${service.name}" vendor="${service.vendor}" version="${service.version}"/>
+			</activateservice>
+
+			<settracerlevel tracername="${sbb.name}" level="${sbb.tracelevel}">
+				<sbbNotificationSource>
+					<service name="${service.name}" vendor="${service.vendor}" version="${service.version}"/>
+					<sbb name="${sbb.name}" vendor="${sbb.vendor}" version="${sbb.version}"/>
+				</sbbNotificationSource>
+			</settracerlevel>
+		</slee-management>
+	</target>
+
+	<target name="undeploy-service" depends="login" description="Undeploy service">
+		<slee-management>
+			<deactivateservice serviceid="${service.id}" />
+			<waittilserviceisinactive serviceid="${service.id}" />
+			<uninstall url="file:${service.jar}" />
+		</slee-management>
+	</target>
+
+	<!-- ================================= 
+          configure SIS: triggers/compositions              
+         ================================= -->
+	<target name="import-sis-configuration" depends="login">
+
+		<sis-sip-management raentity="${easysip.sis.entityname}">
+
+			<createserviceref name="registrar_ref" type="local">
+				<service name="${service.name}" vendor="${service.vendor}" version="${service.version}"/>
+			</createserviceref>
+
+			<installcomposition file="${basedir}/../sis/compositions/registrar_composition_1.0.xml"/>
+
+			<installtrigger file="${basedir}/../sis/triggers/registrar_trigger_1.0.xml"/>
+
+			<activatetrigger>
+				<trigger name="registrar_trigger" vendor="OpenCloud" version="1.0"/>
+			</activatetrigger>
+
+			<reload/>
+
+		</sis-sip-management>
+
+	</target>
+
+	<target name="remove-sis-configuration" depends="login">
+
+		<sis-sip-management raentity="${easysip.sis.entityname}">
+			<deactivatetrigger>
+				<trigger name="registrar_trigger" vendor="OpenCloud" version="1.0"/>
+			</deactivatetrigger>
+			<uninstalltrigger>
+				<trigger name="registrar_trigger" vendor="OpenCloud" version="1.0" />
+			</uninstalltrigger>
+			<uninstallcomposition>
+				<composition name="registrar_composition" vendor="OpenCloud" version="1.0" />
+			</uninstallcomposition>
+			
+			<reload />
+
+		</sis-sip-management>
+
+	</target>
+	<!-- ================================= 
+          deploy sis sip ra             
+         ================================= -->
+
+	<target name="deploy-easysip-ra" depends="create-easysip-ra-entity, login" description="Deploy the EasySip SIS RA">
+		<sis-sip-management raentity="${easysip.sis.entityname}">
+			<createnetworkinterface name="${easysip.sis.entityname}-default" type="SIP">
+				<property name="IPAddress" value="${easysip.sis.IPAddress}"/>
+				<property name="Port" value="${easysip.sis.Port}"/>
+				<property name="SecurePort" value="${easysip.sis.SecurePort}"/>
+				<property name="VirtualAddresses" value="${easysip.sis.VirtualAddresses}"/>
+				<property name="UseVirtualAddressInURIs" value="${easysip.sis.UseVirtualAddressInURIs}"/>
+			</createnetworkinterface>
+			<enablenetworkinterface name="${easysip.sis.entityname}-default"/>
+			<reload/>
+		</sis-sip-management>
+		<slee-management>
+			<activateraentity entityname="${easysip.sis.entityname}"/>
+		</slee-management>
+	</target>
+
+
+	<target name="create-easysip-ra-entity" depends="install-sis-easysip-du,create-sipsis-profile-tables">
+		<slee-management>
+			<createraentity entityname="${easysip.sis.entityname}" properties="${easysip.sis.properties}">
+				<component name="SIS-SIP/EasySIP RA" vendor="OpenCloud" version="${sis.release.version}"/>
+			</createraentity>
+			<settracerlevel tracerName="root" level="${easysipra.tracelevel}">
+				<raentitynotificationsource entityname="${easysip.sis.entityname}"/>
+			</settracerlevel>
+			<bindralinkname entityname="${easysip.sis.entityname}" linkname="${easysip.sis.linkname}"/>
+		</slee-management>
+	</target>
+
+	<target name="install-easysip-ratype-du" depends="locate-sis-sip-dus,login">
+		<slee-management>
+			<install srcfile="${sis.connectivity.pack}/du/${du.easysip-ratype}" url="file:sip/${du.easysip-ratype}"/>
+		</slee-management>
+	</target>
+
+	<macrodef name="install-optional">
+		<!-- 'protocol' deprecated, use 'du' instead -->
+		<attribute name="protocol" default="@{du}"/>
+		<attribute name="du" default="@{protocol}"/>
+		<sequential>
+			<if>
+				<isset property="du.@{du}"/>
+				<then>
+					<slee-management>
+						<install srcfile="${cgin_connectivity}/du/${du.@{du}}" url="file:cgin/${du.@{du}}"/>
+					</slee-management>
+				</then>
+			</if>
+		</sequential>
+	</macrodef>
+
+	<target name="install-oc-common" depends="locate-sis-sip-dus,login">
+		<slee-management>
+					<install srcfile="${sis.connectivity.pack}/du/${du.oc-common}"   url="file:sip/${du.oc-common}"/>
+		</slee-management>
+	</target>
+
+	<target name="install-jsip-library-du" depends="login,locate-sis-sip-dus">
+		<slee-management>
+			<install srcfile="${sis.connectivity.pack}/du/${du.jsip-library}" url="file:sip/${du.jsip-library}"/>
+		</slee-management>
+	</target>
+
+	<target name="install-sis-sip-scs-ratype-du" depends="login,install-sis-common-du,locate-sis-sip-dus">
+		<slee-management>
+			<install srcfile="${sis.connectivity.pack}/du/${du.sis-sip-scs-ratype}" url="file:sis/${du.sis-sip-scs-ratype}"/>
+		</slee-management>
+	</target>
+
+	<target name="install-sis-common-du" depends="login,install-oc-common,install-jsip-library-du,locate-sis-sip-dus">
+		<slee-management>
+			<install srcfile="${sis.connectivity.pack}/du/${du.sis-sip-common}" url="file:sis/${du.sis-sip-common}"/>
+		</slee-management>
+	</target>
+
+	<target name="install-sis-interceptors-ratype-du" depends="login,install-sis-common-du,locate-sis-sip-dus">
+		<slee-management>
+			<install srcfile="${sis.connectivity.pack}/du/${du.sis-sip-interceptors-ratype}" url="file:sis/${du.sis-sip-interceptors-ratype}"/>
+		</slee-management>
+	</target>
+
+	<target name="install-sis-sip-base-du" depends="locate-sis-sip-dus,install-sis-common-du,install-sis-sip-scs-ratype-du,install-sis-interceptors-ratype-du"/>
+
+	<target name="install-sis-easysip-du" depends="install-easysip-ratype-du,install-sis-sip-base-du">
+		<slee-management>
+			<install srcfile="${sis.connectivity.pack}/du/${du.sis-easysip}" url="file:sis/${du.sis-easysip}"/>
+		</slee-management>
+	</target>
+
+	<target name="create-sipsis-profile-tables">
+		<slee-management>
+			<createprofiletable tablename="${sis.config.table}">
+				<component name="${sis.sip.basename} ${sis.sip.profile.name.config}"
+	                   vendor="${sis.vendor}"
+	                   version="${sis.version.base}"/>
+			</createprofiletable>
+			<createprofile tablename="${sis.config.table}" profilename="${sis.config.profile}">
+				<profilevalue name="TriggerProfileTableName" value="${sis.triggers.table}"/>
+				<profilevalue name="MacroProfileTableName" value="${sis.macros.table}"/>
+				<profilevalue name="ServiceCompositionProfileTableName" value="${sis.compositions.table}"/>
+				<profilevalue name="AddressSubscriptionProfileTableName" value="${sis.address-subscriptions.table}"/>
+				<profilevalue name="ExtensionRefProfileTableName" value="${sis.extension-refs.table}"/>
+				<profilevalue name="ExternalPlatformProfileTableName" value="${sis.ext-platforms.table}"/>
+				<profilevalue name="ServiceRefProfileTableName" value="${sis.service-refs.table}"/>
+				<profilevalue name="TriggerAddressTracingProfileTableName" value="${sis.trigger-address-tracing.table}"/>
+				<profilevalue name="NetworkInterfaceProfileTableName" value="${sis.network-interfaces.table}"/>
+				<profilevalue name="NetworkRouteProfileTableName" value="${sis.network-routes.table}"/>
+				<profilevalue name="InterceptorProfileTableName" value="${sis.interceptors.table}"/>
+				<profilevalue name="InterceptorRefProfileTableName" value="${sis.interceptor-refs.table}"/>
+			</createprofile>
+		</slee-management>
+		<slee-management>
+			<createprofiletable tablename="${sis.address-subscriptions.table}">
+				<component name="${sis.basename} ${sis.profile.name.address-subscription}"
+	                   vendor="${sis.vendor}"
+	                   version="${sis.version.base}"/>
+			</createprofiletable>
+			<createprofiletable tablename="${sis.triggers.table}">
+				<component name="${sis.basename} ${sis.profile.name.trigger}"
+	                   vendor="${sis.vendor}"
+	                   version="${sis.version.base}"/>
+			</createprofiletable>
+			<createprofiletable tablename="${sis.macros.table}">
+				<component name="${sis.basename} ${sis.profile.name.macro}"
+	                   vendor="${sis.vendor}"
+	                   version="${sis.version.base}"/>
+			</createprofiletable>
+			<createprofiletable tablename="${sis.compositions.table}">
+				<component name="${sis.basename} ${sis.profile.name.composition}"
+	                   vendor="${sis.vendor}"
+	                   version="${sis.version.base}"/>
+			</createprofiletable>
+			<createprofiletable tablename="${sis.interceptors.table}">
+				<component name="${sis.basename} ${sis.profile.name.interceptor}"
+	                   vendor="${sis.vendor}"
+	                   version="${sis.version.base}"/>
+			</createprofiletable>
+			<createprofiletable tablename="${sis.ext-platforms.table}">
+				<component name="${sis.basename} ${sis.profile.name.external-platform}"
+	                   vendor="${sis.vendor}"
+	                   version="${sis.version.base}"/>
+			</createprofiletable>
+			<createprofiletable tablename="${sis.extension-refs.table}">
+				<component name="${sis.basename} ${sis.profile.name.extension-ref}"
+	                   vendor="${sis.vendor}"
+	                   version="${sis.version.base}"/>
+			</createprofiletable>
+			<createprofiletable tablename="${sis.service-refs.table}">
+				<component name="${sis.basename} ${sis.profile.name.service-ref}"
+	                   vendor="${sis.vendor}"
+	                   version="${sis.version.base}"/>
+			</createprofiletable>
+			<createprofiletable tablename="${sis.interceptor-refs.table}">
+				<component name="${sis.basename} ${sis.profile.name.interceptor-ref}"
+	                   vendor="${sis.vendor}"
+	                   version="${sis.version.base}"/>
+			</createprofiletable>
+			<createprofiletable tablename="${sis.trigger-address-tracing.table}">
+				<component name="${sis.basename} ${sis.profile.name.trigger-address-tracing}"
+	                   vendor="${sis.vendor}"
+	                   version="${sis.version.base}"/>
+			</createprofiletable>
+			<createprofiletable tablename="${sis.network-interfaces.table}">
+				<component name="${sis.basename} ${sis.profile.name.network-interface}"
+	                   vendor="${sis.vendor}"
+	                   version="${sis.version.base}"/>
+			</createprofiletable>
+			<createprofiletable tablename="${sis.network-routes.table}">
+				<component name="${sis.basename} ${sis.profile.name.network-route}"
+	                   vendor="${sis.vendor}"
+	                   version="${sis.version.base}"/>
+			</createprofiletable>
+		</slee-management>
+	</target>
+
+	<target name="remove-sipsis-profile-tables" depends="login">
+		<slee-management>
+			<removeprofiletable tablename="${sis.config.table}"/>
+			<removeprofiletable tablename="${sis.address-subscriptions.table}"/>
+			<removeprofiletable tablename="${sis.triggers.table}"/>
+			<removeprofiletable tablename="${sis.macros.table}"/>
+			<removeprofiletable tablename="${sis.compositions.table}"/>
+			<removeprofiletable tablename="${sis.interceptors.table}"/>
+			<removeprofiletable tablename="${sis.ext-platforms.table}"/>
+			<removeprofiletable tablename="${sis.extension-refs.table}"/>
+			<removeprofiletable tablename="${sis.interceptor-refs.table}"/>
+			<removeprofiletable tablename="${sis.service-refs.table}"/>
+			<removeprofiletable tablename="${sis.trigger-address-tracing.table}"/>
+			<removeprofiletable tablename="${sis.network-interfaces.table}"/>
+			<removeprofiletable tablename="${sis.network-routes.table}"/>
+		</slee-management>
+	</target>
+
+	<target name="undeploy-easysip-ra" depends="locate-sis-sip-dus,login" description="Undeploy the EasySip SIS RA">
+		<slee-management>
+			<deactivateraentity entityname="${easysip.sis.entityname}"/>
+			<waittilraentityisinactive entityname="${easysip.sis.entityname}"/>
+			<unbindralinkname linkname="${easysip.sis.linkname}"/>
+			<removeraentity entityname="${easysip.sis.entityname}"/>
+			<uninstall url="file:sis/${du.sis-easysip}"/>
+		</slee-management>
+	</target>
+
+</project>

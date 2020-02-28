@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+
+<project name="OC-101 EasySIP: First Application" default="deploy-all">
+ 
+    <property file="build.local.properties"/>
+    <property file="build.properties"/>
+    <import file="${client.home}/etc/common.xml"/> 
+
+    <import file="${basedir}/build/build-service.xml"/>
+    <import file="${basedir}/build/deploy.xml"/>
+
+    <!-- ================================= 
+          target: build-all              
+         ================================= -->
+    <target name="build-all" description="Builds all DUs"
+        depends="build" />    
+    
+    <!-- ================================= 
+          target: deploy-all              
+         ================================= -->
+    <target name="deploy-all" description="Deploys all"
+        depends="build-all, deploy-easysip-ra, deploy-service, import-sis-configuration" />
+    
+    <!-- ================================= 
+          target: undeploy-all              
+         ================================= -->
+    <target name="undeploy-all" description="Undeploys all"
+        depends="undeploy-service, remove-sis-configuration, undeploy-easysip-ra" />
+	
+    <!-- ================================= 
+          target: redeploy-all              
+         ================================= -->
+    <target name="redeploy-all" description="Redeploys all"
+        depends="undeploy-all, deploy-all" />
+</project>
